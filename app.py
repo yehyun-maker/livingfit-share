@@ -209,6 +209,19 @@ class LoanCalculator:
                 st.markdown("수도권, 규제지역 주택구입목적 주택담보대출이 최대 6억 원으로 제한됩니다.")
                 st.markdown("(생활안정자금 목적 주택담보대출의 경우 최대 1억 원 제한)")
 
+        # 이미지 표시
+        # 1) 선택된 자치구별 평균 실거래가
+        loc = self.inputs.get("location", "")
+        gu_images = f"images2/{loc}_실거래가_평균(2024).png"
+        try:
+            st.image(gu_images, caption=f"{loc}_실거래가_평균(2024)", use_container_width=True)
+        except FileNotFoundError:
+            st.warning(f"지역별 이미지 파일을 찾을 수 없습니다: {gu_images}")
+        # 2) 서울시 전체 평균 실거래가
+        seoul_img = "images2/서울시_실거래가_평균(2024).png"
+        st.image(seoul_img, caption="서울시_실거래가_평균(2024)", use_container_width=True)
+
+
 
         # self.results에 저장
         self.results = results
@@ -346,7 +359,7 @@ class QualitativeScorer:
 class LivingFitApp:
     def __init__(self):
         st.set_page_config(page_title="리빙핏 스코어", page_icon="🏠", layout="centered")
-        st.title("🏠 리빙핏 스코어")
+        st.title("🏠 주택 금융 건전성 자가 진단")
         st.caption("내 집 마련을 위한 금융 건전성 가이드")
 
         self.loan_calculator = LoanCalculator()
