@@ -97,7 +97,7 @@ class LoanCalculator:
         return ltv_limit, loan_amount
 
     def calculate_dsr_loan(self, ltv_loan):
-        """DSR 기준 대출 가능액 계산 (수정된 버전)"""
+        """DSR 기준 대출 가능액 계산"""
         # 입력값 변환 (오류 처리 추가)
         try:
             annual_income = float(self.inputs['annual_income_man'] or 0)
@@ -179,7 +179,7 @@ class LoanCalculator:
             f"• LTV 기준 대출가능액: {self.fmt_man(results['ltv_loan'])}\n\n"
             f"• DSR 기준 대출가능액: {self.fmt_man(results['dsr_loan'])}\n\n"
             f"• 대출 가능 금액: {self.fmt_man(results['possible_loan'])}\n\n"
-            f"💡 보유 현금: {self.fmt_man(self.inputs['cash_man'])}\n"
+            f"💡 주택 구매 가능 현금: {self.fmt_man(self.inputs['cash_man'])}\n"
             f"→ **총 구매 가능 비용: {self.fmt_man(results['total_cost'])}**"
         )
 
@@ -210,6 +210,8 @@ class LoanCalculator:
                 st.markdown("(생활안정자금 목적 주택담보대출의 경우 최대 1억 원 제한)")
 
         # 이미지 표시
+        # 0) 2024 거래 기록
+        st.caption ("아래 자료는 2024년 아파트 매매 실거래가 자료입니다. 해당 기간 거래 기록이 없는 행정동은 '0원'으로 표시되었습니다.")
         # 1) 선택된 자치구별 평균 실거래가
         loc = self.inputs.get("location", "")
         gu_images = f"images2/{loc}_실거래가_평균(2024).png"
