@@ -6,13 +6,9 @@ class LoanCalculator:
         "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
         "관악구", "서초구", "강남구", "송파구", "강동구",
     ]
-    NON_REGULATED = {
-        "종로구", "중구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구",
-        "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
-        "관악구", "강동구"
-    }
+  
     DSR_LIMIT = 0.40
-    MAX_LOAN_CAP_MAN = 60_000  # 6억원
+    STRESS_SPREAD = 3.0 
 
     def __init__(self):
         self.inputs = {}
@@ -58,14 +54,14 @@ class LoanCalculator:
                     "금리 (%)",
                     placeholder="2.5"
                 )
-                st.caption("※ 스트레스 금리(+1.5%p)가 포함되어 계산됩니다.")
+                st.caption("※ 스트레스 금리(+3.0%p)가 포함되어 계산됩니다.")
                 self.inputs['homeownership'] = st.radio(
                     "현재 주택 보유 여부",
                     options=["생애 최초 구매", "0(처분 조건부 1주택자)", "1주택 이상"],
                     horizontal=False
                 )
 
-                # cash_man 입력 처리 (오류 수정)
+                # cash_man 입력 처리
                 cash_input = st.text_input("주택 구매 가능 현금 (만원)", "0")
                 try:
                     self.inputs['cash_man'] = float(cash_input) if cash_input else 0.0
@@ -73,23 +69,35 @@ class LoanCalculator:
                     st.warning("현금 입력값이 유효하지 않습니다. 0으로 처리됩니다.")
                     self.inputs['cash_man'] = 0.0
 
-    def calculate_ltv_loan(self):
-        """LTV 기준 대출 가능액 계산"""
-        homeownership = self.inputs['homeownership']
-        location = self.inputs['location']
-
-        # 주택 가격 변환 (오류 처리 추가)
+    def _house_price_uk(self) -> float:
         try:
-            house_price_uk = float(self.inputs['house_price_uk'] or 0)
+            return float(self.inputs.get('house_price_uk') or 0.0)
         except ValueError:
-            house_price_uk = 0.0
+            return 0.0
 
-        house_price_man = house_price_uk * 10_000
+    def _dynamic_cap_man(self) -> tuple[int, str]:
+        """
+        주택가격 구간별 대출한도(만원)와 안내문구 반환
+        ≤15억 → 6억, 15~25억 → 4억, >25억 → 2억
+        """
+        hp_uk = self._house_price_uk()
+        if hp_uk <= 15:
+            cap_man, label = 60_000, "주택가격 15억원 이하 → 최대 6억원 한도 [25.10.15 시행]"
+        elif hp_uk <= 25:
+            cap_man, label = 40_000, "주택가격 15억 초과 25억원 이하 → 최대 4억원 한도 [25.10.15 시행]"
+        else:
+            cap_man, label = 20_000, "주택가격 25억원 초과 → 최대 2억원 한도 [25.10.15 시행]"
+        return cap_man, label
+
+    def calculate_ltv_loan(self):
+        """LTV 기준 대출 가능액 계산 (서울 전 지역 규제지역으로 변경)"""
+        homeownership = self.inputs['homeownership']
+        house_price_man = self._house_price_uk() * 10_000  # 억→만원
 
         if homeownership == "생애 최초 구매":
             ltv_limit = 0.70
         elif homeownership == "0(처분 조건부 1주택자)":
-            ltv_limit = 0.70 if location in self.NON_REGULATED else 0.50
+            ltv_limit = 0.40
         else:
             ltv_limit = 0.00
 
@@ -98,7 +106,7 @@ class LoanCalculator:
 
     def calculate_dsr_loan(self, ltv_loan):
         """DSR 기준 대출 가능액 계산"""
-        # 입력값 변환 (오류 처리 추가)
+        # 입력값 변환
         try:
             annual_income = float(self.inputs['annual_income_man'] or 0)
             existing_pay = float(self.inputs['existing_annual_pay_man'] or 0)
@@ -107,7 +115,7 @@ class LoanCalculator:
         except ValueError:
             return 0
 
-        stress_rate = interest + 1.5
+        stress_rate = interest + self.STRESS_SPREAD
 
         # DSR 허용 상환액 계산
         max_annual_pay = annual_income * self.DSR_LIMIT
@@ -138,8 +146,9 @@ class LoanCalculator:
         try:
             ltv_limit, ltv_loan = self.calculate_ltv_loan()
             dsr_loan = self.calculate_dsr_loan(ltv_loan)
-            possible_loan = min(dsr_loan, self.MAX_LOAN_CAP_MAN)
-            is_capped = dsr_loan > self.MAX_LOAN_CAP_MAN
+            cap_man, cap_label = self._dynamic_cap_man()
+            possible_loan = min(dsr_loan, cap_man)
+            is_capped = dsr_loan > cap_man
 
             # 결과값을 명시적으로 반환
             return {
@@ -148,6 +157,8 @@ class LoanCalculator:
                 'dsr_loan': dsr_loan,
                 'possible_loan': possible_loan,
                 'is_capped': is_capped,
+                'cap_label': cap_label,
+                'cap_value_man': cap_man,
                 'total_cost': possible_loan + self.inputs['cash_man']
             }
 
@@ -184,30 +195,33 @@ class LoanCalculator:
         )
 
         # 박스2: LTV 관련 규제 안내
-        with st.expander("📌 LTV 규제 상세 정보", expanded=True):
+        with st.expander("📌 LTV · 규제 상세 정보", expanded=True):
             homeownership = self.inputs['homeownership']
 
             if homeownership == "생애 최초 구매":
                 st.markdown("**생애최초구입자**")
-                st.markdown("수도권, 규제지역 내 생애최초 주택구입 목적 주담대 강화 : LTV 70%, 6개월 이내 전입 의무[25.6.28 시행]")
-
+                st.markdown("수도권, 규제지역 내 생애최초 주택구입 목적 주담대 강화 : **LTV 70%**, 6개월 이내 전입 의무. [25.10.15 시행]")
             elif homeownership == "0(처분 조건부 1주택자)":
-                st.markdown("**0(처분조건부 1주택자)**")
+                st.markdown("**0(처분 조건부 1주택자)**")
                 st.markdown(
-                    "처분조건부 1주택자는 주택담보대출 실행일*로부터 6개월 내에 기존 주택을 처분(명의 이전 완료)하고 이를 증빙해야 하며, 위반 시 기한의 이익이 상실(대출금 즉시 회수)되고 향후 3년간 주택 관련 대출이 제한됩니다.")
-                st.markdown("\\*중도금, 이주비 대출의 경우 신규 주택 소유권 이전 등기일")
-
-            else:  # 1주택 이상
+                    "주택담보대출 실행일로부터 **6개월 내 기존 주택 처분(명의 이전 완료)** 및 증빙 필요. 위반 시 **기한의 이익 상실(대출금 즉시 회수)**, "
+                    "**향후 3년간 주택 관련 대출 제한**. [25.10.15 시행]"
+                )
+                st.markdown("※ 본 앱은 전 지역 동일 규정 가정하에 **LTV 50%** 적용.")
+            else:
                 st.markdown("**1주택 이상**")
-                st.markdown("다주택자 방지 : 추가 주택 구입 목적 주택담보대출 금지(LTV 0%). [25.6.28 시행]")
-                st.markdown("6개월 이내 처분 후 추가 주택을 구매 예정인 1주택자는 '0(처분 조건부 1주택자)'를 선택해주시길 바랍니다.")
+                st.markdown("다주택자 방지 : 추가 **주택** 구입 목적 주택담보대출 금지(**LTV 0%**). [25.10.15 시행]")
+                st.markdown("6개월 내 처분 후 추가 주택을 구매 예정이라면 '0(처분 조건부 1주택자)'를 선택하세요.")
 
-            # 6억 한도 적용 안내
+            st.markdown("---")
+            st.markdown("**가격 구간별 대출한도 상한**")
+            st.markdown(
+                f"- 현재 적용 상한: **{results['cap_label']}**  \n"
+                f"- (참고) 수도권·규제지역 주택구입목적 주담대는 가격 구간별 상한을 적용합니다.  "
+                f"**{self.fmt_man(results['cap_value_man'])}** 한도 내에서만 실행됩니다."
+            )
             if results['is_capped']:
-                st.markdown("---")
-                st.markdown("**6억원 대출 한도 안내**")
-                st.markdown("수도권, 규제지역 주택구입목적 주택담보대출이 최대 6억 원으로 제한됩니다.")
-                st.markdown("(생활안정자금 목적 주택담보대출의 경우 최대 1억 원 제한)")
+                st.info("DSR/LTV 산출액이 가격구간 상한을 초과하여, 상한으로 제한되었습니다.")
 
         # 이미지 표시
         # 0) 2024 거래 기록
