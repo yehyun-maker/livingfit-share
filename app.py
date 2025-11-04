@@ -248,11 +248,7 @@ class QualitativeScorer:
         "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
         "관악구", "서초구", "강남구", "송파구", "강동구",
     ]
-    NON_REGULATED = {
-        "종로구", "중구", "성동구", "광진구", "동대문구", "중랑구", "성북구", "강북구", "도봉구",
-        "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
-        "관악구", "강동구"
-    }
+
     def __init__(self):
         self.inputs = {}
         self.scores = {}
@@ -309,7 +305,6 @@ class QualitativeScorer:
                 "10년 이상": 100
             }[self.inputs['stay_period']],
             'subscription': 100 if self.inputs['has_subscription'] == "있음" else 50,
-            'regulation': 100 if self.inputs['moving_location'] in self.NON_REGULATED else 50
         }
 
         weights = {
@@ -317,8 +312,7 @@ class QualitativeScorer:
             'disposition': 0.25,
             'job_school': 0.20,
             'stay': 0.20,
-            'subscription': 0.05,
-            'regulation': 0.05
+            'subscription': 0.10,    
         }
 
         # (3) self.scores, self.score에 결과 저장
