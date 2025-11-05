@@ -6,7 +6,8 @@ class LoanCalculator:
         "노원구", "은평구", "서대문구", "마포구", "양천구", "강서구", "구로구", "금천구", "영등포구", "동작구",
         "관악구", "서초구", "강남구", "송파구", "강동구",
     ]
-  
+
+    DSR_LIMIT = 0.40
     STRESS_SPREAD = 3.0 
     LOAN_TYPE_WEIGHTS = {
         "완전 고정금리": 0.00,           # 순수 고정: 스트레스 금리 미적용
@@ -135,7 +136,7 @@ class LoanCalculator:
         stress_rate = float(self.inputs.get('interest_rate') or 0) + self.STRESS_SPREAD * weight # 스트레스 금리 = 기존금리 + (가산치 × 적용비중)
 
         # DSR 허용 상환액 계산
-        max_annual_pay = annual_income * stress_rate
+        max_annual_pay = annual_income * DSR_LIMIT
         available_pay = max(max_annual_pay - existing_pay, 0)
 
         # 월 상환액 계산 (만원 → 원 변환)
@@ -192,7 +193,7 @@ class LoanCalculator:
             }
 
     def show_loan_results(self):
-        """대출 결과 출력 - 안정성 강화 버전"""
+        """대출 결과 출력"""
         if not st.button("💰 계산하기"):
             return
 
@@ -200,6 +201,11 @@ class LoanCalculator:
         results = self.calculate_loan_results()
 
         self.results = results
+
+        # ✅ 출력용 스트레스 금리 계산(간단버전)
+        loan_type   = (self.inputs.get('loan_type') or "변동형(5년 미만 변동주기)")
+        weight      = self.LOAN_TYPE_WEIGHTS.get(loan_type, 1.00)
+        stress_rate = float(self.inputs.get('interest_rate') or 0) + self.STRESS_SPREAD * weight
 
         # 박스1: 계산 결과 출력
         st.success(
