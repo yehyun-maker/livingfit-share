@@ -132,10 +132,7 @@ class LoanCalculator:
         # 상품유형 적용비중
         loan_type = self.inputs.get('loan_type', "변동형(5년 미만 변동주기)") #기본값 : 가장 보수적인 가정
         weight = self.LOAN_TYPE_WEIGHTS.get(loan_type, 1.00)
-    
-        # 스트레스 금리 = 기존금리 + (가산치 × 적용비중)
-        stress_add = self.STRESS_SPREAD * weight       # 예: 3.0 × 0.80 = 2.4%p
-        stress_rate = interest + stress_add            # 최종 DSR 계산용 금리(%)
+        stress_rate = float(self.inputs.get('interest_rate') or 0) + self.STRESS_SPREAD * weight # 스트레스 금리 = 기존금리 + (가산치 × 적용비중)
 
         # DSR 허용 상환액 계산
         max_annual_pay = annual_income * stress_rate
@@ -206,7 +203,7 @@ class LoanCalculator:
 
         # 박스1: 계산 결과 출력
         st.success(
-            f"LTV = {results['ltv_limit'] * 100:.0f}% / DSR = 40%\n\n"
+            f"LTV = {results['ltv_limit'] * 100:.0f}% / DSR = {stress_rate: .2f}%"
             f"• LTV 기준 대출가능액: {self.fmt_man(results['ltv_loan'])}\n\n"
             f"• DSR 기준 대출가능액: {self.fmt_man(results['dsr_loan'])}\n\n"
             f"• 대출 가능 금액: {self.fmt_man(results['possible_loan'])}\n\n"
