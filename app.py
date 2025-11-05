@@ -8,7 +8,13 @@ class LoanCalculator:
     ]
   
     STRESS_SPREAD = 3.0 
-
+    LOAN_TYPE_WEIGHTS = {
+        "완전 고정금리": 0.00,           # 순수 고정: 스트레스 금리 미적용
+        "변동형(5년 미만 변동주기)": 1.00, # 변동형: 100%
+        "5년 혼합형(고정 5년 후 변동)": 0.80,  # 혼합형(예: 5년) : 80%
+        "5년 주기형(5년마다 재산정)": 0.40,    # 주기형(예: 5년) : 40%
+    }
+    
     def __init__(self):
         self.inputs = {}
         self.results = {}
@@ -43,6 +49,12 @@ class LoanCalculator:
                     "기존 대출의 연간 원리금 상환액 (만원)",
                     placeholder="예 : 420"
                 )
+                self.inputs['loan_type'] = st.selectbox(
+                    "대출 금리 유형",
+                    list(self.LOAN_TYPE_WEIGHTS.keys()),
+                    index=2  # 기본값: 5년 혼합형
+                )
+
 
             with col2:
                 self.inputs['location'] = st.selectbox(
@@ -53,7 +65,10 @@ class LoanCalculator:
                     "금리 (%)",
                     placeholder="2.5"
                 )
-                st.caption("※ 스트레스 금리(+3.0%p)가 포함되어 계산됩니다.")
+                st.caption(
+                    "※ 스트레스 금리(+3.0%p)가 포함되어 계산됩니다."
+                    "대출 유형별 적용 비중이 다르게 계산됩니다."
+                )
                 self.inputs['homeownership'] = st.radio(
                     "현재 주택 보유 여부",
                     options=["생애 최초 구매", "0(처분 조건부 1주택자)", "1주택 이상"],
@@ -114,7 +129,13 @@ class LoanCalculator:
         except ValueError:
             return 0
 
-        stress_rate = interest + self.STRESS_SPREAD
+        # 상품유형 적용비중
+        loan_type = self.inputs.get('loan_type', "변동형(5년 미만 변동주기)") #기본값 : 가장 보수적인 가정
+        weight = self.LOAN_TYPE_WEIGHTS.get(loan_type, 1.00)
+    
+        # 스트레스 금리 = 기존금리 + (가산치 × 적용비중)
+        stress_add = self.STRESS_SPREAD * weight       # 예: 3.0 × 0.80 = 2.4%p
+        stress_rate = interest + stress_add            # 최종 DSR 계산용 금리(%)
 
         # DSR 허용 상환액 계산
         max_annual_pay = annual_income * stress_rate
@@ -123,7 +144,7 @@ class LoanCalculator:
         # 월 상환액 계산 (만원 → 원 변환)
         monthly_payment_won = (available_pay / 12) * 10_000  # 원 단위
 
-        r = stress_rate / 100 / 12  # 월 이자율
+        r = (stress_rate / 100) / 12  # 월 이자율
         n = loan_term * 12  # 총 개월 수
 
         # 대출 가능액 계산
@@ -222,6 +243,18 @@ class LoanCalculator:
             if results['is_capped']:
                 st.info("DSR/LTV 산출액이 가격구간 상한을 초과하여, 상한으로 제한되었습니다.")
 
+        # 박스3: DSR 관련 규제 안내
+        with st.expander("📌 DSR · 규제 상세 정보", expanded=True):
+            st.markdown("**스트레스 금리 적용 내역**")
+            applied = self.STRESS_SPREAD * self.LOAN_TYPE_WEIGHTS[self.inputs['loan_type']]
+            st.markdown(
+                f"- 선택 유형: **{self.inputs['loan_type']}**  \n"
+                f"- 적용비중: **{self.LOAN_TYPE_WEIGHTS[self.inputs['loan_type']]*100:.0f}%**  \n"
+                f"- 가산치: **{self.STRESS_SPREAD:.1f}%p × {self.LOAN_TYPE_WEIGHTS[self.inputs['loan_type']]*100:.0f}% "
+                f"= {applied:.2f}%p**  \n"
+                f"- DSR 계산 금리: **입력금리 + 가산치 = {float(self.inputs['interest_rate'] or 0) + applied:.2f}%**"
+            )
+        
         # 이미지 표시
         # 0) 2024 거래 기록
         st.caption ("아래 자료는 2024년 아파트 매매 실거래가 자료입니다. 해당 기간 거래 기록이 없는 행정동은 '0원'으로 표시되었습니다.")
