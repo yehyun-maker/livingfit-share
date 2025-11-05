@@ -7,7 +7,6 @@ class LoanCalculator:
         "관악구", "서초구", "강남구", "송파구", "강동구",
     ]
   
-    DSR_LIMIT = 0.40
     STRESS_SPREAD = 3.0 
 
     def __init__(self):
@@ -118,7 +117,7 @@ class LoanCalculator:
         stress_rate = interest + self.STRESS_SPREAD
 
         # DSR 허용 상환액 계산
-        max_annual_pay = annual_income * self.DSR_LIMIT
+        max_annual_pay = annual_income * stress_rate
         available_pay = max(max_annual_pay - existing_pay, 0)
 
         # 월 상환액 계산 (만원 → 원 변환)
