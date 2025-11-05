@@ -136,7 +136,7 @@ class LoanCalculator:
         stress_rate = float(self.inputs.get('interest_rate') or 0) + self.STRESS_SPREAD * weight # 스트레스 금리 = 기존금리 + (가산치 × 적용비중)
 
         # DSR 허용 상환액 계산
-        max_annual_pay = annual_income * DSR_LIMIT
+        max_annual_pay = annual_income * self.DSR_LIMIT
         available_pay = max(max_annual_pay - existing_pay, 0)
 
         # 월 상환액 계산 (만원 → 원 변환)
@@ -160,7 +160,7 @@ class LoanCalculator:
         return min(ltv_loan, max_loan_man)
 
     def calculate_loan_results(self):
-        """대출 관련 최종 결과 계산 - 반환 값 보장"""
+        """대출 관련 최종 결과 계산"""
         try:
             ltv_limit, ltv_loan = self.calculate_ltv_loan()
             dsr_loan = self.calculate_dsr_loan(ltv_loan)
@@ -202,14 +202,14 @@ class LoanCalculator:
 
         self.results = results
 
-        # ✅ 출력용 스트레스 금리 계산(간단버전)
+        # ✅ 출력용 스트레스 금리 계산
         loan_type   = (self.inputs.get('loan_type') or "변동형(5년 미만 변동주기)")
         weight      = self.LOAN_TYPE_WEIGHTS.get(loan_type, 1.00)
         stress_rate = float(self.inputs.get('interest_rate') or 0) + self.STRESS_SPREAD * weight
 
         # 박스1: 계산 결과 출력
         st.success(
-            f"LTV = {results['ltv_limit'] * 100:.0f}% / DSR = {stress_rate: .2f}%"
+            f"LTV = {results['ltv_limit'] * 100:.0f}% / DSR = {stress_rate: .2f}%\n\n"
             f"• LTV 기준 대출가능액: {self.fmt_man(results['ltv_loan'])}\n\n"
             f"• DSR 기준 대출가능액: {self.fmt_man(results['dsr_loan'])}\n\n"
             f"• 대출 가능 금액: {self.fmt_man(results['possible_loan'])}\n\n"
